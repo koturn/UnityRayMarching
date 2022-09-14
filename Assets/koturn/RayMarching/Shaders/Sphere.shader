@@ -18,6 +18,11 @@ Shader "koturn/RayMarching/Sphere"
 
         [KeywordEnum(Legacy, SH9)]
         _AmbientMode ("Reflection Model", Int) = 1
+
+        [Toggle(_ENABLE_REFLECTION_PROBE)]
+        _EnableReflectionProbe ("Enable Reflection Probe", Int) = 1
+
+        _RefProbeBlendCoeff ("Blend coefficint of reflection probe", Range(0.0, 1.0)) = 0.5
     }
 
     SubShader
@@ -40,6 +45,7 @@ Shader "koturn/RayMarching/Sphere"
             #pragma shader_feature_local_fragment _DIFFUSEMODE_LEMBERT _DIFFUSEMODE_HALF_LEMBERT _DIFFUSEMODE_SQURED_HALF_LEMBERT
             #pragma shader_feature_local_fragment _SPECULARMODE_ORIGINAL _SPECULARMODE_HALF_VECTOR
             #pragma shader_feature_local_fragment _AMBIENTMODE_LEGACY _AMBIENTMODE_SH9
+            #pragma shader_feature_local_fragment _ _ENABLE_REFLECTION_PROBE
 
             #include "UnityCG.cginc"
             #include "AutoLight.cginc"
@@ -78,6 +84,7 @@ Shader "koturn/RayMarching/Sphere"
             float sdSphere(float3 p, float r);
             float sdf(float3 p);
             float3 getNormal(float3 p);
+            half4 getReflectionProbeColor(half3 refDir);
 
 
             //! Color of light.
@@ -95,6 +102,8 @@ Shader "koturn/RayMarching/Sphere"
             uniform float _SpecularPower;
             //! Specular color.
             uniform float4 _SpecularColor;
+            //! Blend coefficint of reflection probe.
+            uniform float _RefProbeBlendCoeff;
 
 
             /*!
@@ -182,8 +191,14 @@ Shader "koturn/RayMarching/Sphere"
                 const float3 ambient = UNITY_LIGHTMODEL_AMBIENT.rgb;
 #endif  // _AMBIENTMODE_SH9
 
+#ifdef _ENABLE_REFLECTION_PROBE
+                const half3 refDir = UnityObjectToWorldNormal(reflect(-viewDir, normal));
+                const half4 refColor = getReflectionProbeColor(refDir);
+                const float4 col = float4((diffuse + ambient) * lerp(_Color.rgb, refColor.rgb, _RefProbeBlendCoeff) + specular, _Color.a);
+#else
                 // Output color.
                 const float4 col = float4((diffuse + ambient) * _Color.rgb + specular, _Color.a);
+#endif  // _ENABLE_REFLECTION_PROBE
 
                 pout o;
                 o.color = col;
@@ -272,6 +287,18 @@ Shader "koturn/RayMarching/Sphere"
                         sdf(p + d.yxy) - sdf(p - d.yxy),
                         sdf(p + d.yyx) - sdf(p - d.yyx)));
 #endif
+            }
+
+            /*!
+             * @brief Get color of reflection probe.
+             * @param [in] refDir  Reflect direction.
+             * @return Color of reflection probe.
+             */
+            half4 getReflectionProbeColor(half3 refDir)
+            {
+                half4 refColor = UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0, refDir, 0.0);
+                refColor.rgb = DecodeHDR(refColor, unity_SpecCube0_HDR);
+                return refColor;
             }
             ENDCG
         }
