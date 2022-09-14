@@ -186,7 +186,7 @@ Shader "koturn/RayMarching/Sphere"
 
                 // Ambient color.
 #ifdef _AMBIENTMODE_SH9
-                const float3 ambient = ShadeSH9(half4(normal, 1.0));
+                const float3 ambient = ShadeSH9(half4(UnityObjectToWorldNormal(normal), 1.0));
 #else
                 const float3 ambient = UNITY_LIGHTMODEL_AMBIENT.rgb;
 #endif  // _AMBIENTMODE_SH9

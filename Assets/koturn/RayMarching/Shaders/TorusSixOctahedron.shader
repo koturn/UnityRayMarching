@@ -190,7 +190,7 @@ Shader "koturn/RayMarching/TorusSixOctahedron"
                 const float3 specular = pow(max(0.0, dot(normalize(lightDir + viewDir), normal)), _SpecularPower) * _SpecularColor.xyz * lightCol;
 
                 // Ambient color.
-                const float3 ambient = ShadeSH9(half4(normal, 1.0));
+                const float3 ambient = ShadeSH9(half4(UnityObjectToWorldNormal(normal), 1.0));
 
                 pout o;
                 o.color = float4((diffuse + ambient) * color.rgb + specular, 1.0);
