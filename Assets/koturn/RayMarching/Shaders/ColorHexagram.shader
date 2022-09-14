@@ -239,10 +239,11 @@ Shader "koturn/RayMarching/ColorHexagram"
                 static const float kTwoThirdPi = UNITY_PI * (2.0 / 3.0);
                 static const float kOneSixthPi = UNITY_PI / 6.0;
                 static const float kInvOneThirdPi = rcp(kOneThirdPi);
+                static const float kInvTwoThirdPi = rcp(kTwoThirdPi);
 
                 const float radius = _TorusRadius + _SinTime.w * _TorusRadiusAmp;
 
-                float d = sdTorus(p, float2(radius, _TorusWidth));
+                float minDist = sdTorus(p, float2(radius, _TorusWidth));
 
                 p.xy = rotate2D(p.xy, _Time.y);
 
@@ -255,9 +256,9 @@ Shader "koturn/RayMarching/ColorHexagram"
                 float3 rayPos1 = p;
                 rayPos1.xy = rotate2D(rayPos1.xy, kOneThirdPi * rotUnit + kOneSixthPi);
 
-                const float nd = sdOctahedron(rayPos1 - float3(radius, 0.0, 0.0), float3(2.0, 2.0, 0.5), _OctahedronSize);
-                if (d > nd) {
-                    d = nd;
+                const float dist = sdOctahedron(rayPos1 - float3(radius, 0.0, 0.0), float3(2.0, 2.0, 0.5), _OctahedronSize);
+                if (minDist > dist) {
+                    minDist = dist;
                     const int idx = ((int)rotUnit);
                     color = idx == 0 ? kColors[0]
                         : idx == 1 ? kColors[1]
@@ -267,24 +268,44 @@ Shader "koturn/RayMarching/ColorHexagram"
                         : kColors[5];
                 }
 
-                const float2 posXY1 = rotate2D(float2(radius, 0.0), kOneThirdPi + kOneThirdPi);
-                const float2 posXY2 = rotate2D(float2(radius, 0.0), kOneThirdPi + kTwoThirdPi + kOneThirdPi);
+                const float2 posXY1 = rotate2D(float2(radius, 0.0), kTwoThirdPi);
+                const float2 posXY2 = rotate2D(float2(radius, 0.0), -kTwoThirdPi);
                 const float2 posCenterXY = (posXY1 + posXY2) * 0.5;
-                const float dist12 = length(posXY2 - posXY1) * 0.5;
+                const float length12 = length(posXY2 - posXY1) * 0.5;
+#if 0
                 for (int i = 0; i < 2; i++) {
                     for (int j = 0; j < 3; j++) {
                         float3 rayPos2 = p;
-                        rayPos2.xy = rotate2D(rayPos2.xy, kTwoThirdPi * float(j) + kOneThirdPi * float(i + 3) + kOneSixthPi);
-                        rayPos2.xy -= rotate2D(posCenterXY, posCenterXY, kTwoThirdPi * float(j) + kOneSixthPi);
-                        const float nd2 = sdCappedCylinder(rayPos2, 0.0025, dist12);
-                        if (d > nd2) {
-                            d = nd2;
+                        rayPos2.xy = rotate2D(rayPos2.xy, kTwoThirdPi * j + kOneThirdPi * (i + 3) + kOneSixthPi);
+                        rayPos2.xy -= rotate2D(posCenterXY, posCenterXY, kTwoThirdPi * j + kOneSixthPi);
+                        const float dist2 = sdCappedCylinder(rayPos2, 0.0025, length12);
+                        if (minDist > dist2) {
+                            minDist = dist2;
                             color = float4(kColors[j * 2 + i].xyz * _LineMultiplier, 0.0);
                         }
                     }
                 }
+#else
+                for (int i = 0; i < 2; i++) {
+                    const float rotUnit2 = floor((xyAngle + kOneSixthPi - kOneThirdPi * i) * kInvTwoThirdPi);
 
-                return d;
+                    float3 rayPos2 = p;
+                    rayPos2.xy = rotate2D(rayPos2.xy, kTwoThirdPi * rotUnit2 + kOneThirdPi * (i + 3) + kOneSixthPi);
+                    rayPos2.xy -= rotate2D(posCenterXY, posCenterXY, kTwoThirdPi * rotUnit2 + kOneSixthPi);
+
+                    const float dist2 = sdCappedCylinder(rayPos2, 0.0025, length12 * 5);
+                    if (minDist > dist2) {
+                        minDist = dist2;
+                        const int idx = int(rotUnit2);
+                        const float3 albedo = idx == 0 ? kColors[0 + i]
+                            : idx == -1 ? kColors[4 + i]
+                            : kColors[2 + i];
+                        color = float4(albedo * _LineMultiplier, 0.0);
+                    }
+                }
+#endif
+
+                return minDist;
             }
 
             /*!
@@ -331,7 +352,7 @@ Shader "koturn/RayMarching/ColorHexagram"
 
             float sdCappedCylinder(float3 p, float h, float r)
             {
-                float2 d = abs(float2(length(p.xz), p.y)) - float2(h, r);
+                const float2 d = abs(float2(length(p.xz), p.y)) - float2(h, r);
                 return min(0.0, max(d.x, d.y)) + length(max(d, 0.0));
             }
 
